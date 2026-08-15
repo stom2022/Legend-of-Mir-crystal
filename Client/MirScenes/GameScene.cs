@@ -345,8 +345,6 @@ namespace Client.MirScenes
 
             SkillBarDialog Bar1 = new SkillBarDialog { Parent = this, Visible = false, BarIndex = 0 };
             SkillBarDialogs.Add(Bar1);
-            SkillBarDialog Bar2 = new SkillBarDialog { Parent = this, Visible = false, BarIndex = 1 };
-            SkillBarDialogs.Add(Bar2);
             ChatOptionDialog = new ChatOptionDialog { Parent = this, Visible = false };
             ChatNoticeDialog = new ChatNoticeDialog { Parent = this, Visible = false };
 
