@@ -1515,6 +1515,7 @@ namespace Client.MirScenes.Dialogs
 
     public sealed class SkillBarDialog : MirImageControl
     {
+        private bool _lastCtrl;
         private readonly MirButton _switchBindsButton;
 
         public bool AltBind;
@@ -1566,9 +1567,9 @@ namespace Client.MirScenes.Dialogs
                 };
                 int j = i + 1;
                 Cells[i].Click += (o, e) =>
-                    {
-                        GameScene.Scene.UseSpell(j + (8 * BarIndex));
-                    };
+                {
+                    GameScene.Scene.UseSpell(j + (8 * BarIndex));
+                };
 
                 CoolDowns[i] = new MirImageControl
                 {
@@ -1662,9 +1663,11 @@ namespace Client.MirScenes.Dialogs
         public void Update()
         {
             HasSkill = false;
+            // determine which set of keys we're showing (normal or ctrl-alt)
+            int checkOffset = CMain.Ctrl ? 8 : BarIndex * 8;
             foreach (var m in GameScene.User.Magics)
             {
-                if ((m.Key < (BarIndex * 8)+1) || (m.Key > ((BarIndex + 1) * 8)+1)) continue;
+                if ((m.Key < (checkOffset + 1)) || (m.Key > (checkOffset + 8))) continue;
                 HasSkill = true;
             }
 
@@ -1678,8 +1681,9 @@ namespace Client.MirScenes.Dialogs
             {
                 Cells[i - 1].Index = -1;
 
-                int offset = BarIndex * 8;
-                string key = GetKey(BarIndex, i);
+                int offset = CMain.Ctrl ? 8 : BarIndex * 8;
+                // keep key labels visible; they will be updated based on Ctrl state in Process
+                string key = GetKey(CMain.Ctrl ? 1 : BarIndex, i);
                 KeyNameLabels[i - 1].Text = key;
 
                 foreach (var m in GameScene.User.Magics)
@@ -1689,13 +1693,9 @@ namespace Client.MirScenes.Dialogs
                     ClientMagic magic = MapObject.User.GetMagic(m.Spell);
                     if (magic == null) continue;
 
-                    //string key = m.Key > 8 ? string.Format("CTRL F{0}", i) : string.Format("F{0}", m.Key);
-
                     Cells[i - 1].Index = magic.Icon * 2;
                     Cells[i - 1].Hint = GameLanguage.ClientTextMap.GetLocalization((ClientTextKeys.SkillMpCooldownKey), magic.Name,
                         (magic.BaseCost + (magic.LevelCost * magic.Level)), Functions.PrintTimeSpanFromMilliSeconds(magic.Delay), key);
-
-                    KeyNameLabels[i - 1].Text = "";
                 }
             }
         }
@@ -1703,6 +1703,13 @@ namespace Client.MirScenes.Dialogs
 
         public void Process()
         {
+            // If Ctrl state changed, refresh the bar so icons/labels reflect the active set
+            if (_lastCtrl != CMain.Ctrl)
+            {
+                _lastCtrl = CMain.Ctrl;
+                Update();
+            }
+
             ProcessSkillDelay();
         }
 
