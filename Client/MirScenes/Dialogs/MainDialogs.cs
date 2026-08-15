@@ -3276,7 +3276,7 @@ namespace Client.MirScenes.Dialogs
     }
     public sealed class MagicButton : MirControl
     {
-        public MirImageControl LevelImage, ExpImage;
+        public MirImageControl LevelImage, ExpImage, KeyImage;
         public MirButton SkillButton;
         public MirLabel LevelLabel, NameLabel, ExpLabel, KeyLabel;
         public ClientMagic Magic;
@@ -3357,7 +3357,77 @@ namespace Client.MirScenes.Dialogs
                 Library = Libraries.Title,
                 Location = new Point(73, 19),
                 Parent = this,
+                DrawImage = false,
                 NotControl = true,
+            };
+
+            KeyImage = new MirImageControl
+            {
+                Library = Libraries.Prguse4,
+                Parent = this,
+                Location = new Point(2, 2),
+                NotControl = true,
+                DrawImage = true,
+                Visible = false,
+            };
+
+            ExpImage.BeforeDraw += (o, e) =>
+            {
+                if (ExpImage.Library == null) return;
+
+                double percent = 0;
+                if (Magic != null)
+                {
+                    switch (Magic.Level)
+                    {
+                        case 0:
+                            if (Magic.Need1 > 0) percent = Magic.Experience / (double)Magic.Need1;
+                            break;
+                        case 1:
+                            if (Magic.Need2 > 0) percent = Magic.Experience / (double)Magic.Need2;
+                            break;
+                        case 2:
+                            if (Magic.Need3 > 0) percent = Magic.Experience / (double)Magic.Need3;
+                            break;
+                        default:
+                            percent = 0;
+                            break;
+                    }
+                }
+
+                if (percent > 1) percent = 1;
+
+                // if skill is max level (3) show full bar
+                if (Magic != null && Magic.Level >= 3) percent = 1;
+
+                // Draw a single background (static) behind the bar, then draw the filled portion on top
+                var bgLib = Libraries.Prguse4;
+                var bgIndex = 15; // new background image (Prguse4 index 15)
+
+                // draw full background unchanged
+                bgLib.Draw(bgIndex, ExpImage.DisplayLocation, Color.White);
+
+                // calculate fill width based on the background true size
+                var bgTrue = bgLib.GetTrueSize(bgIndex);
+                if (bgTrue == Size.Empty) return;
+                int fillWidth = (int)(bgTrue.Width * percent);
+                if (fillWidth <= 0) return;
+
+                var fillLib = Libraries.Prguse4;
+                var fillIndex = 16; // new fill graphic (Prguse4 index 16)
+                var fillTrue = fillLib.GetTrueSize(fillIndex);
+                if (fillTrue == Size.Empty) return;
+
+                // scale the source section of the fill graphic proportionally to the background
+                int sourceWidth;
+                if (percent >= 1) sourceWidth = fillTrue.Width;
+                else sourceWidth = Math.Max(1, (int)Math.Round(fillTrue.Width * (fillWidth / (double)bgTrue.Width)));
+
+                Rectangle section = new Rectangle(0, 0, sourceWidth, fillTrue.Height);
+
+                // offset the front (fill) image by +3 X and +5 Y relative to the background
+                Point fillPoint = new Point(ExpImage.DisplayLocation.X + 2, ExpImage.DisplayLocation.Y + 2);
+                fillLib.Draw(fillIndex, section, fillPoint, Color.White, false);
             };
 
             LevelLabel = new MirLabel
@@ -3426,10 +3496,52 @@ namespace Client.MirScenes.Dialogs
                     break;
             }
 
-            KeyLabel.Text = Magic.Key == 0 ? string.Empty : string.Format("{0}{1}F{2}",
-                Prefixes[(Magic.Key - 1) / 8],
-                Magic.Key > 8 ? Environment.NewLine : string.Empty,
-                (Magic.Key - 1) % 8 + 1);
+            // Show key icon if available in Prguse4 (Ctrl images 17-24, F images 25-32)
+            if (Magic.Key == 0)
+            {
+                KeyLabel.Text = string.Empty;
+                KeyImage.Visible = false;
+                KeyLabel.Visible = true;
+            }
+            else
+            {
+                int key = Magic.Key;
+                int keyIndex = (key - 1) % 8; // 0..7 -> F1..F8
+                int imgIndex = -1;
+
+                // Magic.Key mapping: 1-8 = F1..F8, 9-16 = Ctrl+F1..F8, 17-24 = Shift+F1..F8
+                if (key >= 1 && key <= 8)
+                {
+                    imgIndex = 25 + keyIndex; // F images 25..32
+                }
+                else if (key >= 9 && key <= 16)
+                {
+                    imgIndex = 17 + keyIndex; // Ctrl images 17..24
+                }
+                else if (key >= 17 && key <= 24)
+                {
+                    // no Shift images provided; fall back to Ctrl images
+                    imgIndex = 17 + keyIndex;
+                }
+
+                if (imgIndex >= 17 && imgIndex <= 32)
+                {
+                    KeyImage.Library = Libraries.Prguse4;
+                    KeyImage.Index = imgIndex;
+                    KeyImage.Visible = true;
+                    KeyLabel.Visible = false;
+                }
+                else
+                {
+                    // fallback to text label
+                    KeyImage.Visible = false;
+                    KeyLabel.Visible = true;
+                    KeyLabel.Text = string.Format("{0}{1}F{2}",
+                        Prefixes[(Magic.Key - 1) / 8],
+                        Magic.Key > 8 ? Environment.NewLine : string.Empty,
+                        (Magic.Key - 1) % 8 + 1);
+                }
+            }
 
             switch (magic.Spell)
             {  //Warrior
