@@ -43,6 +43,14 @@ Crystal has become the foundation for most private Legend of Mir 2 servers world
 - 🌐 [Databases](https://github.com/Suprcode/Crystal.Database)
 - 🌐 [Map Editor](https://github.com/Suprcode/Crystal.MapEditor)
 
+
+
+### Upadates 
+now with twindrakeblade being a toggleskill
+skill exp bar in skill page 
+
+
+
 ### Official Links
 
 - <img src="https://web-cdn.mironline.co.kr/mir2/icon/mir2_favicon.ico" alt="Wemade" width="20"/> [Wemade Mir 2](https://mir2.mironline.co.kr/)
