@@ -11,7 +11,7 @@ namespace Client.MirGraphics
     {
         public static bool Loaded;
         public static int Count, Progress;
-
+        // UI
         public static readonly MLibrary
             ChrSel = new MLibrary(Settings.DataPath + "ChrSel"),
             Prguse = new MLibrary(Settings.DataPath + "Prguse"),
@@ -31,8 +31,10 @@ namespace Client.MirGraphics
             Effect = new MLibrary(Settings.DataPath + "Effect"),
             MagicC = new MLibrary(Settings.DataPath + "MagicC"),
             GuildSkill = new MLibrary(Settings.DataPath + "GuildSkill"),
-            Weather = new MLibrary(Settings.DataPath + "Weather");
-
+            Weather = new MLibrary(Settings.DataPath + "Weather"),
+           CustomPrguse =  new MLibrary(Settings.DataPath + "Custom-Prguse");
+        
+        
         public static readonly MLibrary
             Background = new MLibrary(Settings.DataPath + "Background");
 
@@ -47,6 +49,7 @@ namespace Client.MirGraphics
         public static readonly MLibrary
             Items = new MLibrary(Settings.DataPath + "Items"),
             StateItems = new MLibrary(Settings.DataPath + "StateItem"),
+            StateEffect = new MLibrary(Settings.DataPath + "StateEffect"),
             FloorItems = new MLibrary(Settings.DataPath + "DNItems"),
             Items_Tooltip_32bit = new MLibrary(Settings.DataPath + "Items_Tooltip_32bit");
 
@@ -289,6 +292,8 @@ namespace Client.MirGraphics
             Items.Initialize();
             Progress++;
             StateItems.Initialize();
+            Progress++;
+            StateEffect.Initialize();
             Progress++;
             FloorItems.Initialize();
             Progress++;

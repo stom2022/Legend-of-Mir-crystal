@@ -428,6 +428,7 @@ namespace Server.MirObjects
                                 return;
                             }
                             break;
+                        
                         case 4: //RepairOil
                             temp = Info.Equipment[(int)EquipmentSlot.Weapon];
                             if (temp == null || temp.MaxDura == temp.CurrentDura)
@@ -491,6 +492,15 @@ namespace Server.MirObjects
                             ReceiveChat(GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.HeroInventoryIncreased), ChatType.System);
                             Owner.Enqueue(p);
                             break;
+
+                        case 16: // GoldBenedictionOil
+                            if (!TryGoldLuckWeapon())
+                            {
+                                Owner.Enqueue(p);
+                                return;
+                            }
+                            break;
+
                     }
                     break;
                 case ItemType.Book:

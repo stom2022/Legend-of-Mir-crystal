@@ -1,4 +1,7 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
+using System.Text.RegularExpressions;
 using Client.MirControls;
 using Client.MirGraphics;
 using Client.MirNetwork;
@@ -1531,8 +1534,8 @@ namespace Client.MirScenes.Dialogs
 
         public SkillBarDialog()
         {
-            Index = 2190;
-            Library = Libraries.Prguse;
+            Index = 2191;
+            Library = Libraries.CustomPrguse;
             Movable = true;
             Sort = true;
             Location = new Point(0, BarIndex * 20);
@@ -1547,7 +1550,8 @@ namespace Client.MirScenes.Dialogs
                 Parent = this,
                 Sound = SoundList.ButtonA,
                 Size = new Size(16, 28),
-                Location = new Point(0, 0)
+                Location = new Point(0, 0),
+                Visible = false
             };
             _switchBindsButton.Click += (o, e) =>
             {
@@ -1561,9 +1565,9 @@ namespace Client.MirScenes.Dialogs
                 Cells[i] = new MirImageControl
                 {
                     Index = -1,
-                    Library = Libraries.MagIcon,
+                    Library = Libraries.MagIcon2,
                     Parent = this,
-                    Location = new Point(i * 25 + 15, 3),
+                    Location = new Point(i * 37 + 12, 10),
                 };
                 int j = i + 1;
                 Cells[i].Click += (o, e) =>
@@ -1575,7 +1579,7 @@ namespace Client.MirScenes.Dialogs
                 {
                     Library = Libraries.Prguse2,
                     Parent = this,
-                    Location = new Point(i * 25 + 15, 3),
+                    Location = new Point(i * 37 + 12, 10),
                     NotControl = true,
                     UseOffSet = true,
                     Opacity = 0.6F
@@ -1590,7 +1594,8 @@ namespace Client.MirScenes.Dialogs
                 Parent = this,
                 Location = new Point(0, 1),
                 Size = new Size(10, 25),
-                NotControl = true
+                NotControl = true,
+                Visible = false
             };
 
             for (var i = 0; i < KeyNameLabels.Length; i++)
@@ -1601,8 +1606,8 @@ namespace Client.MirScenes.Dialogs
                     Font = new Font(Settings.FontName, 8F),
                     ForeColour = Color.White,
                     Parent = this,
-                    Location = new Point(i * 25 + 13, 0),
-                    Size = new Size(25, 25),
+                    Location = new Point(i * 37 + 12, 10),
+                    Size = new Size(37, 25),
                     NotControl = true
                 };
             }
@@ -1672,7 +1677,7 @@ namespace Client.MirScenes.Dialogs
             }
 
             if (!Visible) return;
-            Index = 2190;
+            Index = 2191;
             _switchBindsButton.Index = 2247;
             BindNumberLabel.Text = (BarIndex + 1).ToString();
             BindNumberLabel.Location = new Point(0, 1);
@@ -1725,7 +1730,7 @@ namespace Client.MirScenes.Dialogs
                 {
                     if (magic.Key != i + offset + 1) continue;
 
-                    int totalFrames = 22;
+                    int totalFrames = 34;
                     long timeLeft = magic.CastTime + magic.Delay - CMain.Time;
 
                     if (timeLeft < 100)
@@ -1745,7 +1750,7 @@ namespace Client.MirScenes.Dialogs
                     if ((CMain.Time <= magic.CastTime + magic.Delay))
                     {
                         CoolDowns[i].Visible = true;
-                        CoolDowns[i].Index = 1260 + startFrame;
+                        CoolDowns[i].Index = 1290 + startFrame;
                     }
                 }
             }
@@ -2119,6 +2124,126 @@ namespace Client.MirScenes.Dialogs
     }
     public sealed class InspectDialog : MirImageControl
     {
+        // --- State effect support (per-slot and gender for armour) ---
+        // per-dialog StateEffect mappings (Inspect dialog keeps its own mappings)
+
+        public struct StateEffectInfo
+        {
+            public int BaseIndex;
+            public int Frames;
+            public int MsPerFrame;
+            public int OffsetX;
+            public int OffsetY;
+            public float Rate;
+
+            public StateEffectInfo(int baseIndex, int frames, int msPerFrame, int offsetX = 0, int offsetY = -20, float rate = 1f)
+            {
+                BaseIndex = baseIndex;
+                Frames = frames;
+                MsPerFrame = msPerFrame;
+                OffsetX = offsetX;
+                OffsetY = offsetY;
+                Rate = rate;
+            }
+        }
+
+        private static readonly Dictionary<(int effectId, EquipmentSlot slot), StateEffectInfo> SlotMap = new Dictionary<(int, EquipmentSlot), StateEffectInfo>
+        {
+            { (68, EquipmentSlot.Weapon), new StateEffectInfo(968, 19, 200, 130, 270, 1f) },
+            { (140, EquipmentSlot.Weapon), new StateEffectInfo(140, 10, 200, 0, -20, 1f) },
+        };
+
+        private static readonly Dictionary<(int effectId, MirGender gender), StateEffectInfo> ArmourMap = new Dictionary<(int, MirGender), StateEffectInfo>
+        {
+            { (1, MirGender.Male), new StateEffectInfo(880, 15, 200, 0, 260, 1f) },
+            { (1, MirGender.Female), new StateEffectInfo(1144, 15, 200, 100, 260, 1f) },
+        };
+
+        private static bool TryGetSlotEffect(int effectId, EquipmentSlot slot, out StateEffectInfo info)
+        {
+            return SlotMap.TryGetValue((effectId, slot), out info);
+        }
+
+        private static bool TryGetArmourEffect(int effectId, MirGender gender, out StateEffectInfo info)
+        {
+            return ArmourMap.TryGetValue((effectId, gender), out info) || SlotMap.TryGetValue((effectId, EquipmentSlot.Armour), out info);
+        }
+
+        private static bool HasArmourMapping(int effectId, MirGender gender)
+        {
+            return ArmourMap.ContainsKey((effectId, gender)) || SlotMap.ContainsKey((effectId, EquipmentSlot.Armour));
+        }
+
+        private static bool HasSlotMapping(int effectId, EquipmentSlot slot)
+        {
+            return SlotMap.ContainsKey((effectId, slot));
+        }
+
+        // UI effect instances that advance independently per slot
+        private class UIEffect
+        {
+            public int BaseIndex;
+            public int Count;
+            public int Duration;
+
+            public int CurrentFrame;
+            public long Start;
+            public bool Repeat = true;
+
+            public UIEffect(int baseIndex, int count, int duration)
+            {
+                BaseIndex = baseIndex;
+                Count = count == 0 ? 1 : count;
+                Duration = duration;
+                Start = CMain.Time;
+            }
+
+            public void Reset(int baseIndex, int count, int duration)
+            {
+                BaseIndex = baseIndex;
+                Count = count == 0 ? 1 : count;
+                Duration = duration;
+                CurrentFrame = 0;
+                Start = CMain.Time;
+            }
+
+            public void UpdateFrame()
+            {
+                if (Count <= 1) { CurrentFrame = 0; return; }
+
+                long elapsed = CMain.Time - Start;
+                if (elapsed < 0) elapsed = 0;
+
+                long frameDuration = Duration / Count;
+                if (frameDuration <= 0) frameDuration = 1;
+
+                long frame = (elapsed / frameDuration) % Count;
+                CurrentFrame = (int)frame;
+            }
+        }
+
+        private readonly Dictionary<(int effectId, EquipmentSlot slot), UIEffect> ActiveUIEffects = new Dictionary<(int, EquipmentSlot), UIEffect>();
+        private readonly System.Windows.Forms.Timer _updateTimer;
+
+        private UIEffect GetOrCreateUIEffect(int effectKey, EquipmentSlot slot, int baseIndex, int frames, int msPerFrame)
+        {
+            var key = (effectKey, slot);
+            if (!ActiveUIEffects.TryGetValue(key, out var e))
+            {
+                e = new UIEffect(baseIndex, frames, frames * msPerFrame);
+                e.Repeat = true;
+                ActiveUIEffects[key] = e;
+                return e;
+            }
+
+            if (e.BaseIndex != baseIndex || e.Count != frames || e.Duration != frames * msPerFrame)
+            {
+                e.Reset(baseIndex, frames, frames * msPerFrame);
+            }
+
+            return e;
+        }
+
         public static UserItem[] Items = new UserItem[14];
         public static uint InspectID;
 
@@ -2172,7 +2297,7 @@ namespace Client.MirScenes.Dialogs
             };
             CharacterPage.AfterDraw += (o, e) =>
             {
-                if (Libraries.StateItems == null) return;
+                if (Libraries.StateItems == null || Libraries.StateEffect == null) return;
 
                 ItemInfo RealItem = null;
 
@@ -2180,22 +2305,101 @@ namespace Client.MirScenes.Dialogs
                 {
                     RealItem = Functions.GetRealItem(ArmorCell.Item.Info, Level, Class, GameScene.ItemInfoList);
                     Libraries.StateItems.Draw(RealItem.Image, new Point(DisplayLocation.X + 0, DisplayLocation.Y + -20), Color.White, true, 1F);
+                    // re-added legacy wing/gender overlay
+                    int wingOffset = RealItem.Effect == 1 ? 2 : 4;
 
+                    int genderOffset = MapObject.User.Gender == MirGender.Male ? 0 : 1;
+
+                    Libraries.Prguse2.DrawBlend(1200 + wingOffset + genderOffset, new Point(DisplayLocation.X, DisplayLocation.Y - 20), Color.White, true, 1F);
+
+                    // armour animated glow (gender-aware)
                     if (RealItem.Effect > 0)
                     {
-                        int wingOffset = RealItem.Effect == 1 ? 2 : 4;
+                        int effectKeyCheck = RealItem.Effect;
+                        bool hasArmourMapping = HasArmourMapping(effectKeyCheck, Gender);
+                        if (hasArmourMapping)
+                        {
+                            int effectKey = RealItem.Effect;
+                            int baseIndex = effectKey;
+                            int frames = 10;
+                            int msPerFrame = 200;
+                            var infoLocal = new StateEffectInfo(baseIndex, frames, msPerFrame, 0, -20, 1f);
 
-                        int genderOffset = MapObject.User.Gender == MirGender.Male ? 0 : 1;
+                        if (TryGetArmourEffect(effectKey, Gender, out var genderMapped))
+                        {
+                            infoLocal = new StateEffectInfo(genderMapped.BaseIndex, genderMapped.Frames, genderMapped.MsPerFrame, genderMapped.OffsetX, genderMapped.OffsetY, genderMapped.Rate);
+                            baseIndex = genderMapped.BaseIndex;
+                            frames = genderMapped.Frames;
+                            msPerFrame = genderMapped.MsPerFrame;
+                        }
+                        else if (TryGetSlotEffect(effectKey, EquipmentSlot.Armour, out var mapped))
+                        {
+                            infoLocal = new StateEffectInfo(mapped.BaseIndex, mapped.Frames, mapped.MsPerFrame, mapped.OffsetX, mapped.OffsetY, mapped.Rate);
+                            baseIndex = mapped.BaseIndex;
+                            frames = mapped.Frames;
+                            msPerFrame = mapped.MsPerFrame;
+                        }
 
-                        Libraries.Prguse2.DrawBlend(1200 + wingOffset + genderOffset, new Point(DisplayLocation.X, DisplayLocation.Y - 20), Color.White, true, 1F);
+                            var uiEffect = GetOrCreateUIEffect(effectKey, EquipmentSlot.Armour, baseIndex, frames, msPerFrame);
+                            uiEffect.UpdateFrame();
+
+                            int drawIndex = baseIndex + uiEffect.CurrentFrame;
+
+                            Point effectLocation = new Point(DisplayLocation.X + infoLocal.OffsetX, DisplayLocation.Y + infoLocal.OffsetY);
+
+                            if (drawIndex >= 0)
+                                Libraries.StateEffect.DrawBlend(drawIndex, effectLocation, Color.White, true, infoLocal.Rate);
+                        }
                     }
                 }
 
                 if (WeaponCell.Item != null)
                 {
                     RealItem = Functions.GetRealItem(WeaponCell.Item.Info, Level, Class, GameScene.ItemInfoList);
-                    Libraries.StateItems.Draw(RealItem.Image, new Point(DisplayLocation.X, DisplayLocation.Y - 20),
-                    Color.White, true, 1F);
+                    Libraries.StateItems.Draw(RealItem.Image, new Point(DisplayLocation.X, DisplayLocation.Y - 20), Color.White, true, 1F);
+
+                    // weapon animated glow
+                    if (RealItem.Effect > 0)
+                    {
+                        int effectKeyCheckW = RealItem.Effect;
+                        if (HasSlotMapping(effectKeyCheckW, EquipmentSlot.Weapon))
+                        {
+                            int effectKey = RealItem.Effect;
+                            int baseIndex = effectKey;
+                            int frames = 10;
+                            int msPerFrame = 200;
+
+                            if (TryGetSlotEffect(effectKey, EquipmentSlot.Weapon, out var info))
+                            {
+                                baseIndex = info.BaseIndex;
+                                frames = info.Frames;
+                                msPerFrame = info.MsPerFrame;
+                            }
+
+                            var uiEffect = GetOrCreateUIEffect(effectKey, EquipmentSlot.Weapon, baseIndex, frames, msPerFrame);
+                            uiEffect.UpdateFrame();
+
+                            int drawIndex = baseIndex + uiEffect.CurrentFrame;
+
+                            int offsetX = 0;
+                            int offsetY = -20;
+                            float effectRate = 1F;
+
+                            if (TryGetSlotEffect(effectKey, EquipmentSlot.Weapon, out var info2))
+                            {
+                                offsetX = info2.OffsetX;
+                                offsetY = info2.OffsetY;
+                                effectRate = info2.Rate;
+                            }
+
+                            Point effectLocation = new Point(DisplayLocation.X + offsetX, DisplayLocation.Y + offsetY);
+
+                            if (drawIndex >= 0)
+                            {
+                                Libraries.StateEffect.DrawBlend(drawIndex, effectLocation, Color.White, true, effectRate);
+                            }
+                        }
+                    }
 
                 }
 
@@ -2474,6 +2678,21 @@ namespace Client.MirScenes.Dialogs
                 Parent = CharacterPage,
                 Location = new Point(203, 62),
             };
+            // timer to force periodic updates/redraws so UI effects animate even when there's no mouse activity
+            _updateTimer = new System.Windows.Forms.Timer();
+            _updateTimer.Interval = 50; // 20 FPS update for UI effects
+            _updateTimer.Tick += (s, e) =>
+            {
+                // Advance frames for active UI effects based on current time
+                foreach (var kv in ActiveUIEffects)
+                {
+                    kv.Value.UpdateFrame();
+                }
+
+                // Force the dialog to redraw so AfterDraw runs and effects are drawn
+                try { Redraw(); } catch { }
+            };
+            _updateTimer.Start();
         }
 
         public void RefreshInferface(bool IsHero)

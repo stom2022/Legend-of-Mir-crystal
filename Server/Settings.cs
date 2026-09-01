@@ -117,6 +117,8 @@ namespace Server
                           DropRange = 4,
                           DropStackSize = 5,
                           PKDelay = 12;
+        // Maximum number of monsters a GM can spawn with the MOB command. Set in Setup.ini under [Game]
+        public static int MaxGMSpawn = 500;
         public static bool MonsterRecallEnabled = true;
         public static int MonsterRecallRange = 12;
         public static int MonsterRecallCooldown = 5000;
@@ -436,6 +438,7 @@ namespace Server
             MonsterRecallEnabled = Reader.ReadBoolean("Game", "MonsterRecallEnabled", MonsterRecallEnabled);
             MonsterRecallRange = Reader.ReadInt32("Game", "MonsterRecallRange", MonsterRecallRange);
             MonsterRecallCooldown = Reader.ReadInt32("Game", "MonsterRecallCooldown", MonsterRecallCooldown);
+            MaxGMSpawn = Math.Max(0, Reader.ReadInt32("Game", "MaxGMSpawn", MaxGMSpawn));
             NewbieGuild = Reader.ReadString("Game", "NewbieGuild", NewbieGuild);
             NewbieGuildMaxSize = Reader.ReadInt32("Game", "NewbieGuildMaxSize", NewbieGuildMaxSize);
             SkeletonName = Reader.ReadString("Game", "SkeletonName", SkeletonName);
