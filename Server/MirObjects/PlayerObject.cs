@@ -2957,7 +2957,16 @@ namespace Server.MirObjects
 
                         uint count = 1;
                         if (parts.Length >= 3 && IsGM)
+                        {
                             if (!uint.TryParse(parts[2], out count)) count = 1;
+                            // If requested count exceeds configured MaxGMSpawn, deny the spawn and notify the GM
+                            if (count > (uint)Settings.MaxGMSpawn)
+                            {
+                                ReceiveChat($"Spawn count capped to {Settings.MaxGMSpawn} to protect clients.", ChatType.Hint);
+                                return;
+                            }
+                        }
+
                         int spread = 0;
                         if (parts.Length >= 4)
                             int.TryParse(parts[3], out spread);
@@ -5936,6 +5945,13 @@ namespace Server.MirObjects
                                 return;
                             }
                             break;
+                        case 16: //BenedictionOil
+                            if (!TryGoldLuckWeapon())
+                            {
+                                Enqueue(p);
+                                return;
+                            }
+                            break;
                         case 4: //RepairOil
                             temp = Info.Equipment[(int)EquipmentSlot.Weapon];
                             if (temp == null || temp.MaxDura == temp.CurrentDura)
@@ -6072,6 +6088,7 @@ namespace Server.MirObjects
                             ReceiveChat(GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.MustBeUsedOnHero), ChatType.Hint);
                             Enqueue(p);
                             break;
+                    
                     }
                     break;
                 case ItemType.Book:

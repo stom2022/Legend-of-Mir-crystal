@@ -3439,19 +3439,45 @@ namespace Server.MirEnvir
         {
             SaveGoods(true);
 
+            // Stop / remove live server objects
             MapList.Clear();
             StartPoints.Clear();
             StartItems.Clear();
             Objects.Clear();
             Players.Clear();
+            Spells.Clear();
+            NPCs.Clear();
+            Guilds.Clear();
+            Conquests.Clear();
             Heroes.Clear();
+
+            // Clear live/server state
             GTMapList.Clear();
+            Scripts.Clear();
+            Timers.Clear();
+            GuildsAtWar.Clear();
+            SavedSpawns.Clear();
+
+            // These are rebuilt when the server starts
+            DragonSystem = null;
+            DefaultNPC = null;
+            MonsterNPC = null;
+            RobotNPC = null;
+
+            MonsterCount = 0;
 
             CleanUp();
 
+            // Force collection after releasing the large object graphs
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             GC.Collect();
 
-            MessageQueue.Enqueue(GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.EnvirStopped));
+            MessageQueue.Enqueue(
+                GameLanguage.ServerTextMap.GetLocalization(
+                    ServerTextKeys.EnvirStopped
+                )
+            );
         }
         private void StopNetwork()
         {

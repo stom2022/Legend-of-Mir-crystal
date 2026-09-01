@@ -1,4 +1,7 @@
-﻿using Client.MirControls;
+﻿using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
+using Client.MirControls;
 using Client.MirGraphics;
 using Client.MirObjects;
 using Client.MirSounds;
@@ -24,6 +27,133 @@ namespace Client.MirScenes.Dialogs
         public int StartIndex;
         private UserObject Actor;
 
+        // per-dialog StateEffect mappings (keep local so Character has its own armour/weapon mappings)
+
+        public struct StateEffectInfo
+        {
+            public int BaseIndex;
+            public int Frames;
+            public int MsPerFrame;
+            public int OffsetX;
+            public int OffsetY;
+            public float Rate;
+
+            public StateEffectInfo(int baseIndex, int frames, int msPerFrame, int offsetX = 0, int offsetY = -20, float rate = 1f)
+            {
+                BaseIndex = baseIndex;
+                Frames = frames;
+                MsPerFrame = msPerFrame;
+                OffsetX = offsetX;
+                OffsetY = offsetY;
+                Rate = rate;
+            }
+        }
+
+        // local per-dialog mappings (weapon/slot and armour by gender)
+        private static readonly Dictionary<(int effectId, EquipmentSlot slot), StateEffectInfo> SlotMap = new Dictionary<(int, EquipmentSlot), StateEffectInfo>
+        {
+            { (68, EquipmentSlot.Weapon), new StateEffectInfo(968, 19, 200, 130, 270, 1f) },
+            { (140, EquipmentSlot.Weapon), new StateEffectInfo(140, 10, 200, 0, -20, 1f) },
+        };
+
+        private static readonly Dictionary<(int effectId, MirGender gender), StateEffectInfo> ArmourMap = new Dictionary<(int, MirGender), StateEffectInfo>
+        {
+            { (1, MirGender.Male), new StateEffectInfo(880, 15, 200, 0, 260, 1f) },
+            { (1, MirGender.Female), new StateEffectInfo(1144, 15, 200, 100, 260, 1f) },
+        };
+
+        private static bool TryGetSlotEffect(int effectId, EquipmentSlot slot, out StateEffectInfo info)
+        {
+            return SlotMap.TryGetValue((effectId, slot), out info);
+        }
+
+        private static bool TryGetArmourEffect(int effectId, MirGender gender, out StateEffectInfo info)
+        {
+            return ArmourMap.TryGetValue((effectId, gender), out info) || SlotMap.TryGetValue((effectId, EquipmentSlot.Armour), out info);
+        }
+
+        private static bool HasArmourMapping(int effectId, MirGender gender)
+        {
+            return ArmourMap.ContainsKey((effectId, gender)) || SlotMap.ContainsKey((effectId, EquipmentSlot.Armour));
+        }
+
+        private static bool HasSlotMapping(int effectId, EquipmentSlot slot)
+        {
+            return SlotMap.ContainsKey((effectId, slot));
+        }
+
+        // UI effect instances that advance independently
+        private class UIEffect
+        {
+            public int BaseIndex;
+            public int Count;
+            public int Duration;
+
+            public int CurrentFrame;
+            public long Start;
+            public long NextFrame;
+            public bool Repeat = true;
+
+            public UIEffect(int baseIndex, int count, int duration)
+            {
+                BaseIndex = baseIndex;
+                Count = count == 0 ? 1 : count;
+                Duration = duration;
+                Start = CMain.Time;
+                NextFrame = Start + (Duration / Count) * (CurrentFrame + 1);
+            }
+
+            public void Reset(int baseIndex, int count, int duration)
+            {
+                BaseIndex = baseIndex;
+                Count = count == 0 ? 1 : count;
+                Duration = duration;
+                CurrentFrame = 0;
+                Start = CMain.Time;
+                NextFrame = Start + (Duration / Count) * (CurrentFrame + 1);
+            }
+
+            // Update CurrentFrame based on elapsed time so the animation advances correctly
+            // even if Process/Draw calls are sporadic.
+            public void UpdateFrame()
+            {
+                if (Count <= 1) { CurrentFrame = 0; return; }
+
+                long elapsed = CMain.Time - Start;
+                if (elapsed < 0) elapsed = 0;
+
+                long frameDuration = Duration / Count;
+                if (frameDuration <= 0) frameDuration = 1;
+
+                long frame = (elapsed / frameDuration) % Count;
+                CurrentFrame = (int)frame;
+            }
+        }
+
+        // key is (effectId, slot) so the same effect id on different equipment slots can animate independently
+        private readonly Dictionary<(int effectId, EquipmentSlot slot), UIEffect> ActiveUIEffects = new Dictionary<(int, EquipmentSlot), UIEffect>();
+        private readonly System.Windows.Forms.Timer _updateTimer;
+
+        private UIEffect GetOrCreateUIEffect(int effectKey, EquipmentSlot slot, int baseIndex, int frames, int msPerFrame)
+        {
+            var key = (effectKey, slot);
+            if (!ActiveUIEffects.TryGetValue(key, out var e))
+            {
+                e = new UIEffect(baseIndex, frames, frames * msPerFrame);
+                e.Repeat = true;
+                ActiveUIEffects[key] = e;
+                return e;
+            }
+
+            // If baseIndex/frames/duration changed, reset
+            if (e.BaseIndex != baseIndex || e.Count != frames || e.Duration != frames * msPerFrame)
+            {
+                e.Reset(baseIndex, frames, frames * msPerFrame);
+            }
+
+            return e;
+        }
+
         public CharacterDialog(MirGridType gridType, UserObject actor)
         {
             Actor = actor;
@@ -36,6 +166,22 @@ namespace Client.MirScenes.Dialogs
             Sort = true;            
 
             BeforeDraw += (o, e) => RefreshInterface();
+
+            // timer to force periodic updates/redraws so UI effects animate even when there's no mouse activity
+            _updateTimer = new System.Windows.Forms.Timer();
+            _updateTimer.Interval = 50; // 20 FPS update for UI effects
+            _updateTimer.Tick += (s, e) =>
+            {
+                // Advance frames for active UI effects based on current time
+                foreach (var kv in ActiveUIEffects)
+                {
+                    kv.Value.UpdateFrame();
+                }
+
+                // Force the dialog to redraw so AfterDraw runs and effects are drawn
+                try { Redraw(); } catch { }
+            };
+            _updateTimer.Start();
 
             CharacterPage = new MirImageControl
             {
@@ -62,11 +208,93 @@ namespace Client.MirScenes.Dialogs
                     RealItem = Functions.GetRealItem(Grid[(int)EquipmentSlot.Armour].Item.Info, actor.Level, actor.Class, GameScene.ItemInfoList);
                     Libraries.StateItems.Draw(RealItem.Image, DisplayLocation, Color.White, true, 1F);
 
+                    // If the equipped armour has a special effect draw an animated glow from StateEffect
+                    // Only apply if a mapping exists in ArmourEffectMap or StateEffectMap
+                    if (RealItem.Effect > 0 && Libraries.StateEffect != null)
+                    {
+                        int effectKeyCheck = RealItem.Effect;
+                        bool hasArmourMapping = HasArmourMapping(effectKeyCheck, actor.Gender);
+                        if (hasArmourMapping)
+                        {
+                            int effectKey = RealItem.Effect;
+                            int baseIndex = effectKey;
+                            int frames = 10;
+                            int msPerFrame = 200;
+                            var infoLocal = new StateEffectInfo(baseIndex, frames, msPerFrame, 0, -20, 1f);
+
+                        // Prefer gender-specific armour mapping if present (local)
+                        if (TryGetArmourEffect(effectKey, actor.Gender, out var genderMapped))
+                        {
+                            infoLocal = new StateEffectInfo(genderMapped.BaseIndex, genderMapped.Frames, genderMapped.MsPerFrame, genderMapped.OffsetX, genderMapped.OffsetY, genderMapped.Rate);
+                            baseIndex = genderMapped.BaseIndex;
+                            frames = genderMapped.Frames;
+                            msPerFrame = genderMapped.MsPerFrame;
+                        }
+                        else if (TryGetSlotEffect(effectKey, EquipmentSlot.Armour, out var mapped))
+                        {
+                            infoLocal = new StateEffectInfo(mapped.BaseIndex, mapped.Frames, mapped.MsPerFrame, mapped.OffsetX, mapped.OffsetY, mapped.Rate);
+                            baseIndex = mapped.BaseIndex;
+                            frames = mapped.Frames;
+                            msPerFrame = mapped.MsPerFrame;
+                        }
+
+                            var uiEffect = GetOrCreateUIEffect(effectKey, EquipmentSlot.Armour, baseIndex, frames, msPerFrame);
+                            uiEffect.UpdateFrame();
+
+                            int drawIndex = baseIndex + uiEffect.CurrentFrame;
+                            Point effectLocation = new Point(DisplayLocation.X + infoLocal.OffsetX, DisplayLocation.Y + infoLocal.OffsetY);
+
+                            if (drawIndex >= 0)
+                                Libraries.StateEffect.DrawBlend(drawIndex, effectLocation, Color.White, true, infoLocal.Rate);
+                        }
+                    }
                 }
                 if (Grid[(int)EquipmentSlot.Weapon].Item != null)
                 {
                     RealItem = Functions.GetRealItem(Grid[(int)EquipmentSlot.Weapon].Item.Info, actor.Level, actor.Class, GameScene.ItemInfoList);
                     Libraries.StateItems.Draw(RealItem.Image, DisplayLocation, Color.White, true, 1F);
+
+                    // If the equipped weapon has a special effect (Effect > 0) draw an animated glow from StateEffect
+                    // Only apply if a mapping exists in the centralized manager for weapon
+                    if (RealItem.Effect > 0 && Libraries.StateEffect != null)
+                    {
+                        int effectKeyCheckW = RealItem.Effect;
+                        if (HasSlotMapping(effectKeyCheckW, EquipmentSlot.Weapon))
+                        {
+                            int effectKey = RealItem.Effect;
+                            int baseIndex = effectKey;
+                            int frames = 10;
+                            int msPerFrame = 200;
+
+                            if (TryGetSlotEffect(effectKey, EquipmentSlot.Weapon, out var info))
+                            {
+                                baseIndex = info.BaseIndex;
+                                frames = info.Frames;
+                                msPerFrame = info.MsPerFrame;
+                            }
+                            // Use a UI effect instance so the glow advances frames itself (stateful)
+                            var uiEffect = GetOrCreateUIEffect(effectKey, EquipmentSlot.Weapon, baseIndex, frames, msPerFrame);
+                            uiEffect.UpdateFrame(); // compute current frame from start/time
+
+                            int drawIndex = baseIndex + uiEffect.CurrentFrame;
+
+                            // Determine offsets (defaults to 0, -20)
+                            int offsetX = 0;
+                            int offsetY = -20;
+                            if (info.OffsetX != 0 || info.OffsetY != 0)
+                            {
+                                offsetX = info.OffsetX;
+                                offsetY = info.OffsetY;
+                            }
+
+                            // Draw the state effect at the configured offset relative to the item display location
+                            Point effectLocation = new Point(DisplayLocation.X + offsetX, DisplayLocation.Y + offsetY);
+
+                            // Basic bounds check: skip if index negative
+                            if (drawIndex >= 0)
+                                Libraries.StateEffect.DrawBlend(drawIndex, effectLocation, Color.White, true, info.Rate);
+                        }
+                    }
 
                 }
 

@@ -1017,6 +1017,49 @@ namespace Server.MirObjects
 
             return true;
         }
+        protected bool TryGoldLuckWeapon()
+        {
+            var item = Info.Equipment[(int)EquipmentSlot.Weapon];
+
+            if (item == null || item.AddedStats[Stat.Luck] >= 7)
+                return false;
+
+            if (item.Info.Bind.HasFlag(BindMode.DontUpgrade))
+                return false;
+
+            if (item.RentalInformation != null && item.RentalInformation.BindingFlags.HasFlag(BindMode.DontUpgrade))
+                return false;
+
+            string message = String.Empty;
+            ChatType chatType;
+
+            // 100% chance to increase Luck
+            Stats[Stat.Luck]++;
+            item.AddedStats[Stat.Luck]++;
+
+            Enqueue(new S.RefreshItem { Item = item });
+
+            message = GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.WeaponLuck);
+            chatType = ChatType.Hint;
+
+            if (this is HeroObject hero)
+            {
+                hero.Owner.Enqueue(new S.RefreshItem { Item = item });
+
+                hero.Owner.ReceiveChat(
+                    GameLanguage.ServerTextMap.GetLocalization(
+                        ServerTextKeys.HeroOwnerReceiveChat,
+                        hero.Name,
+                        message),
+                    chatType);
+            }
+            else
+            {
+                ReceiveChat(message, chatType);
+            }
+
+            return true;
+        }
         protected bool CanUseItem(UserItem item)
         {
             if (item == null) return false;
