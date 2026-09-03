@@ -4491,7 +4491,7 @@ namespace Server.MirObjects
                     Cell cell = CurrentMap.GetCell(location);
 
                     if (cell.Objects == null ||
-                        cell.Objects.Where(ob => ob.Race == ObjectType.Spell).All(ob => ((SpellObject)ob).Spell != Spell.DigOutZombie && ((SpellObject)ob).Spell != Spell.DigOutArmadillo))
+                        cell.Objects.Where(ob => ob.Race == ObjectType.Spell).All(ob => ((SpellObject)ob).Spell != Spell.DigOutZombie && ((SpellObject)ob).Spell != Spell.DigOutArmadillo && ((SpellObject)ob).Spell != Spell.HellKeeperPortal))
                         continue;
                 }
 

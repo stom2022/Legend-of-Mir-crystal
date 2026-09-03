@@ -1,6 +1,7 @@
 ﻿using Server.MirDatabase;
 using Server.MirEnvir;
 using S = ServerPackets;
+using System.Drawing;
 
 namespace Server.MirObjects.Monsters
 {
@@ -8,7 +9,10 @@ namespace Server.MirObjects.Monsters
     {
         protected override bool CanMove { get { return false; } }
         protected override bool CanRegen { get { return false; } }
-        
+        private bool _portalsSpawned;
+
+        private readonly Point Portal1Location = new Point(233, 78);
+        private readonly Point Portal2Location = new Point(237, 73);
 
         protected internal HellKeeper(MonsterInfo info) : base(info)
         {
@@ -27,7 +31,36 @@ namespace Server.MirObjects.Monsters
         }
         public override bool Walk(MirDirection dir) { return false; }
 
+        private void SpawnGatekeeperPortals()
+        {
+            if (_portalsSpawned) return;
+            if (CurrentMap == null) return;
 
+            _portalsSpawned = true;
+
+            SpawnPortal(Portal1Location);
+            SpawnPortal(Portal2Location);
+        }
+
+        private void SpawnPortal(Point location)
+        {
+            if (!CurrentMap.ValidPoint(location)) return;
+
+            SpellObject ob = new SpellObject
+            {
+                Spell = Spell.HellKeeperPortal,
+                Value = 1,
+                ExpireTime = Envir.Time + (5 * 60 * 1000),
+                TickSpeed = 2000,
+                Caster = null,
+                CurrentLocation = location,
+                CurrentMap = CurrentMap,
+                Direction = Direction
+            };
+
+            CurrentMap.AddObject(ob);
+            ob.Spawned();
+        }
         public override int Attacked(MonsterObject attacker, int damage, DefenceType type = DefenceType.ACAgility)
         {
             int armour = 0;
@@ -85,6 +118,14 @@ namespace Server.MirObjects.Monsters
 
             ChangeHP(armour - damage);
             return 1;
+        }
+        public override void Die()
+        {
+            if (Dead) return;
+
+            base.Die();
+
+            SpawnGatekeeperPortals();
         }
         public override int Attacked(HumanObject attacker, int damage, DefenceType type = DefenceType.ACAgility, bool damageWeapon = true)
         {
