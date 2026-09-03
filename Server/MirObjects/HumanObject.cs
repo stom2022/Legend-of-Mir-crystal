@@ -1017,6 +1017,79 @@ namespace Server.MirObjects
 
             return true;
         }
+        protected bool TryPureLuckWeapon()
+        {
+            var item = Info.Equipment[(int)EquipmentSlot.Weapon];
+
+            if (item == null || item.AddedStats[Stat.Luck] >= 7)
+                return false;
+
+            if (item.Info.Bind.HasFlag(BindMode.DontUpgrade))
+                return false;
+
+            if (item.RentalInformation != null &&
+                item.RentalInformation.BindingFlags.HasFlag(BindMode.DontUpgrade))
+                return false;
+
+            string message = String.Empty;
+            ChatType chatType;
+
+            // Below Luck +4, there is NO chance to curse.
+            if (item.AddedStats[Stat.Luck] < 4)
+            {
+                if (item.AddedStats[Stat.Luck] <= 0 ||
+                    Envir.Random.Next(10 * item.GetTotal(Stat.Luck)) == 0)
+                {
+                    Stats[Stat.Luck]++;
+                    item.AddedStats[Stat.Luck]++;
+
+                    Enqueue(new S.RefreshItem { Item = item });
+
+                    message = GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.WeaponLuck);
+                    chatType = ChatType.Hint;
+                }
+                else
+                {
+                    message = GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.WeaponNoEffect);
+                    chatType = ChatType.Hint;
+                }
+            }
+            else
+            {
+                // Luck +4 and above uses the normal curse/success system.
+                if (item.AddedStats[Stat.Luck] > (Settings.MaxLuck * -1) &&
+                    Envir.Random.Next(20) == 0)
+                {
+                    Stats[Stat.Luck]--;
+                    item.AddedStats[Stat.Luck]--;
+
+                    Enqueue(new S.RefreshItem { Item = item });
+
+                    message = GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.WeaponCurse);
+                    chatType = ChatType.System;
+                }
+                else if (item.AddedStats[Stat.Luck] <= 0 ||
+                         Envir.Random.Next(10 * item.GetTotal(Stat.Luck)) == 0)
+                {
+                    Stats[Stat.Luck]++;
+                    item.AddedStats[Stat.Luck]++;
+
+                    Enqueue(new S.RefreshItem { Item = item });
+
+                    message = GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.WeaponLuck);
+                    chatType = ChatType.Hint;
+                }
+                else
+                {
+                    message = GameLanguage.ServerTextMap.GetLocalization(ServerTextKeys.WeaponNoEffect);
+                    chatType = ChatType.Hint;
+                }
+            }
+
+            ReceiveChat(message, chatType);
+
+            return true;
+        }
         protected bool TryGoldLuckWeapon()
         {
             var item = Info.Equipment[(int)EquipmentSlot.Weapon];

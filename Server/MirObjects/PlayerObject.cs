@@ -5952,6 +5952,13 @@ namespace Server.MirObjects
                                 return;
                             }
                             break;
+                        case 17: //BenedictionOil
+                            if (!TryPureLuckWeapon())
+                            {
+                                Enqueue(p);
+                                return;
+                            }
+                            break;
                         case 4: //RepairOil
                             temp = Info.Equipment[(int)EquipmentSlot.Weapon];
                             if (temp == null || temp.MaxDura == temp.CurrentDura)
