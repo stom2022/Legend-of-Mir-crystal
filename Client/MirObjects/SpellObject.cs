@@ -159,6 +159,12 @@ namespace Client.MirObjects
                     FrameCount = 0;
                     Blend = false;
                     break;
+                case Spell.HellKeeperPortal:
+                    BodyLibrary = Libraries.Monsters[(ushort)Monster.Armadillo];
+                    DrawFrame = 472 + (byte)Direction;
+                    FrameCount = 0;
+                    Blend = false;
+                    break;
                 case Spell.GeneralMeowMeowThunder:                
                     MapControl.Effects.Add(new Effect(Libraries.Monsters[(ushort)Monster.GeneralMeowMeow], 522, 7, 700, CurrentLocation) { Blend = true });
                     SoundManager.PlaySound(8321);

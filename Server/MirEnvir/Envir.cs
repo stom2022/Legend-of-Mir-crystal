@@ -3267,28 +3267,54 @@ namespace Server.MirEnvir
 
             lock (_locker)
             {
-                // changing a blocking condition. (this makes the threads wake up!)
                 Monitor.PulseAll(_locker);
             }
 
-            //simply intterupt all the mob threads if they are running (will give an invisible error on them but fastest way of getting rid of them on shutdowns)
+            // Stop all mob threads
             for (var i = 1; i < MobThreading.Length; i++)
             {
                 if (MobThreads[i] != null)
-                {
                     MobThreads[i].EndTime = Time + 9999;
-                }
+
                 if (MobThreading[i] != null &&
-                    MobThreading[i].ThreadState != System.Threading.ThreadState.Stopped && MobThreading[i].ThreadState != System.Threading.ThreadState.Unstarted)
+                    MobThreading[i].ThreadState != System.Threading.ThreadState.Stopped &&
+                    MobThreading[i].ThreadState != System.Threading.ThreadState.Unstarted)
                 {
-                    MobThreading[i].Interrupt();
+                    try
+                    {
+                        MobThreading[i].Interrupt();
+                    }
+                    catch
+                    {
+                        // Thread may already have stopped
+                    }
                 }
             }
 
             http?.Stop();
 
+            // Wait for the main server thread to finish
             while (_thread != null)
                 Thread.Sleep(1);
+
+            // Release references held by mob threads
+            for (var i = 0; i < MobThreads.Length; i++)
+            {
+                if (MobThreads[i] != null)
+                {
+                    MobThreads[i].ObjectsList.Clear();
+                    MobThreads[i]._current = null;
+                    MobThreads[i] = null;
+                }
+            }
+
+            // Release references to the old thread objects
+            for (var i = 0; i < MobThreading.Length; i++)
+                MobThreading[i] = null;
+
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
         }
 
         public void Reboot()
